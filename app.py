@@ -26,7 +26,7 @@ LINE_MAX_FILE_SIZE = 500 * 1024  # 500 KB
 def probe_video(path: str) -> dict:
     """Return basic video metadata via ffprobe."""
     cmd = [
-        "ffprobe", "-v", "quiet",
+        "ffprobe", "-v", "error",
         "-print_format", "json",
         "-show_streams", "-show_format",
         str(path),
