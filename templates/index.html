@@ -1,62 +1,76 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LINE Sticker Maker</title>
+  <title>LINEスタンプメーカー</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
   <div class="app">
     <header>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button class="lang-btn" data-lang="ja">日本語</button>
+        <button class="lang-btn" data-lang="en">EN</button>
+      </div>
       <div class="logo">
         <span class="logo-icon">🟢</span>
-        <h1>LINE Sticker Maker</h1>
+        <h1 data-i18n="title">LINE Sticker Maker</h1>
       </div>
-      <p class="subtitle">Convert MP4 → APNG animated sticker</p>
+      <p class="subtitle" data-i18n="subtitle">Convert MP4 → APNG animated sticker</p>
     </header>
+
+    <section class="quick-start">
+      <h2 data-i18n="qs_title">Quick Start</h2>
+      <ol>
+        <li data-i18n="qs_1">Upload an MP4 (≤ 4 sec, solid-color background works best)</li>
+        <li data-i18n="qs_2">Click the background in the preview to set the transparent color</li>
+        <li data-i18n="qs_3">Adjust similarity / blend sliders if needed</li>
+        <li data-i18n="qs_4">Pick a frame count and hit Convert</li>
+      </ol>
+    </section>
 
     <main>
       <!-- Step 1: Upload -->
       <section class="card" id="upload-section">
-        <h2><span class="step">1</span> Upload Video</h2>
+        <h2><span class="step">1</span> <span data-i18n="step1">Upload Video</span></h2>
         <div class="drop-zone" id="drop-zone">
           <div class="drop-icon">🎬</div>
-          <p class="drop-label">Drag &amp; drop an MP4 here</p>
-          <p class="drop-hint">or click to browse</p>
+          <p class="drop-label" data-i18n="drop_label">Drag &amp; drop an MP4 here</p>
+          <p class="drop-hint" data-i18n="drop_hint">or click to browse</p>
           <input type="file" id="file-input" accept="video/mp4,video/*" hidden />
         </div>
         <div class="file-info" id="file-info" hidden>
           <span class="file-name" id="file-name"></span>
-          <button class="btn-ghost btn-sm" id="change-file-btn">Change</button>
+          <button class="btn-ghost btn-sm" id="change-file-btn" data-i18n="change">Change</button>
         </div>
       </section>
 
       <!-- Step 2: Preview + Color Picker -->
       <section class="card" id="preview-section" hidden>
-        <h2><span class="step">2</span> Pick Background Color</h2>
+        <h2><span class="step">2</span> <span data-i18n="step2">Pick Background Color</span></h2>
         <div class="preview-area">
           <div class="canvas-wrapper">
             <canvas id="preview-canvas"></canvas>
-            <div class="canvas-hint">Click to pick background color</div>
+            <div class="canvas-hint" data-i18n="canvas_hint">Click to pick background color</div>
           </div>
           <div class="color-info">
             <div class="color-swatch" id="color-swatch"></div>
             <div class="color-details">
-              <label for="bg-color-input">Background color</label>
+              <label for="bg-color-input" data-i18n="bg_color_label">Background color</label>
               <div class="color-input-row">
                 <input type="color" id="color-picker-native" />
                 <input type="text" id="bg-color-input" placeholder="#00FF00" maxlength="7" />
               </div>
               <div class="preset-row">
-                <span class="preset-label">Presets:</span>
-                <button class="preset-btn" data-color="#00FF00" title="Green screen"
+                <span class="preset-label" data-i18n="presets">Presets:</span>
+                <button class="preset-btn" data-color="#00FF00" data-i18n-title="preset_green" title="Green screen"
                   style="background:#00FF00"></button>
-                <button class="preset-btn" data-color="#0000FF" title="Blue screen"
+                <button class="preset-btn" data-color="#0000FF" data-i18n-title="preset_blue" title="Blue screen"
                   style="background:#0000FF"></button>
-                <button class="preset-btn" data-color="#FFFFFF" title="White background"
+                <button class="preset-btn" data-color="#FFFFFF" data-i18n-title="preset_white" title="White background"
                   style="background:#FFFFFF"></button>
-                <button class="preset-btn" data-color="#000000" title="Black background"
+                <button class="preset-btn" data-color="#000000" data-i18n-title="preset_black" title="Black background"
                   style="background:#000000;border-color:#555"></button>
               </div>
             </div>
@@ -68,12 +82,12 @@
 
       <!-- Step 3: Settings -->
       <section class="card" id="settings-section" hidden>
-        <h2><span class="step">3</span> Settings</h2>
+        <h2><span class="step">3</span> <span data-i18n="step3">Settings</span></h2>
         <div class="settings-grid">
           <div class="setting-row">
             <label for="similarity-slider">
-              Color similarity
-              <span class="hint">Higher = remove more shades of the color</span>
+              <span data-i18n="similarity">Color similarity</span>
+              <span class="hint" data-i18n="similarity_hint">Higher = remove more shades of the color</span>
             </label>
             <div class="slider-row">
               <input type="range" id="similarity-slider" min="0.01" max="0.50" step="0.01" value="0.30" />
@@ -82,8 +96,8 @@
           </div>
           <div class="setting-row">
             <label for="blend-slider">
-              Edge blend
-              <span class="hint">Smooths edges around removed color</span>
+              <span data-i18n="blend">Edge blend</span>
+              <span class="hint" data-i18n="blend_hint">Smooths edges around removed color</span>
             </label>
             <div class="slider-row">
               <input type="range" id="blend-slider" min="0.00" max="0.20" step="0.01" value="0.20" />
@@ -92,8 +106,8 @@
           </div>
           <div class="setting-row">
             <label for="frame-slider">
-              Frames
-              <span class="hint">LINE requires 5–20 frames</span>
+              <span data-i18n="frames">Frames</span>
+              <span class="hint" data-i18n="frames_hint">LINE requires 5–20 frames</span>
             </label>
             <div class="slider-row">
               <input type="range" id="frame-slider" min="5" max="20" step="1" value="10" />
@@ -103,14 +117,14 @@
         </div>
 
         <div class="line-specs">
-          <h3>LINE Sticker Specs</h3>
+          <h3 data-i18n="specs_title">LINE Sticker Specs</h3>
           <ul>
-            <li>Format: <strong>APNG (.png)</strong></li>
-            <li>Max size: <strong>320 × 270 px</strong> (at least one side = 270 px)</li>
-            <li>File size: <strong>≤ 500 KB</strong></li>
-            <li>Frames: <strong>5–20</strong></li>
-            <li>Duration: <strong>≤ 4 seconds</strong></li>
-            <li>Background: <strong>Transparent</strong></li>
+            <li><span data-i18n="spec_format">Format:</span> <strong data-i18n="spec_format_val">APNG (.png)</strong></li>
+            <li><span data-i18n="spec_size">Max size:</span> <strong data-i18n="spec_size_val">320 × 270 px</strong> <span data-i18n="spec_size_note">(at least one side = 270 px)</span></li>
+            <li><span data-i18n="spec_filesize">File size:</span> <strong data-i18n="spec_filesize_val">≤ 500 KB</strong></li>
+            <li><span data-i18n="spec_frames">Frames:</span> <strong data-i18n="spec_frames_val">5–20</strong></li>
+            <li><span data-i18n="spec_duration">Duration:</span> <strong data-i18n="spec_duration_val">≤ 4 seconds</strong></li>
+            <li><span data-i18n="spec_bg">Background:</span> <strong data-i18n="spec_bg_val">Transparent</strong></li>
           </ul>
           <div class="target-dims" id="target-dims"></div>
         </div>
@@ -119,7 +133,7 @@
       <!-- Convert button -->
       <div class="convert-row" id="convert-row" hidden>
         <button class="btn-primary" id="convert-btn">
-          <span class="btn-icon">⚡</span> Convert to APNG
+          <span class="btn-icon">⚡</span> <span data-i18n="convert_btn">Convert to APNG</span>
         </button>
       </div>
 
@@ -133,7 +147,7 @@
 
       <!-- Step 5: Result -->
       <section class="card" id="result-section" hidden>
-        <h2><span class="step">✓</span> Done!</h2>
+        <h2><span class="step">✓</span> <span data-i18n="done">Done!</span></h2>
         <div class="result-area">
           <div class="result-preview-wrapper">
             <img id="result-img" alt="Converted sticker" />
@@ -144,9 +158,9 @@
             <div class="warning-box" id="size-warning" hidden></div>
             <div class="info-box" id="auto-compress-note" hidden></div>
             <button class="btn-primary" id="download-btn">
-              <span class="btn-icon">⬇</span> Download sticker.png
+              <span class="btn-icon">⬇</span> <span data-i18n="download_btn">Download sticker.png</span>
             </button>
-            <button class="btn-ghost" id="restart-btn">Convert another</button>
+            <button class="btn-ghost" id="restart-btn" data-i18n="convert_another">Convert another</button>
           </div>
         </div>
       </section>
@@ -154,10 +168,14 @@
 
     <footer>
       <p>
-        Based on
-        <a href="https://creator.line.me/en/guideline/animationsticker/" target="_blank" rel="noopener">
+        <span data-i18n="based_on">Based on</span>
+        <a href="https://creator.line.me/en/guideline/animationsticker/" target="_blank" rel="noopener" data-i18n="line_guidelines">
           LINE Animated Sticker Guidelines
         </a>
+      </p>
+      <p>
+        <span data-i18n="developed_by">Developed by</span>
+        <a href="https://oomph.cool/" target="_blank" rel="noopener">Oomph Inc.</a>
       </p>
     </footer>
   </div>
