@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LINE Sticker Maker</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo">
+        <span class="logo-icon">🟢</span>
+        <h1>LINE Sticker Maker</h1>
+      </div>
+      <p class="subtitle">Convert MP4 → APNG animated sticker</p>
+    </header>
+
+    <main>
+      <!-- Step 1: Upload -->
+      <section class="card" id="upload-section">
+        <h2><span class="step">1</span> Upload Video</h2>
+        <div class="drop-zone" id="drop-zone">
+          <div class="drop-icon">🎬</div>
+          <p class="drop-label">Drag &amp; drop an MP4 here</p>
+          <p class="drop-hint">or click to browse</p>
+          <input type="file" id="file-input" accept="video/mp4,video/*" hidden />
+        </div>
+        <div class="file-info" id="file-info" hidden>
+          <span class="file-name" id="file-name"></span>
+          <button class="btn-ghost btn-sm" id="change-file-btn">Change</button>
+        </div>
+      </section>
+
+      <!-- Step 2: Preview + Color Picker -->
+      <section class="card" id="preview-section" hidden>
+        <h2><span class="step">2</span> Pick Background Color</h2>
+        <div class="preview-area">
+          <div class="canvas-wrapper">
+            <canvas id="preview-canvas"></canvas>
+            <div class="canvas-hint">Click to pick background color</div>
+          </div>
+          <div class="color-info">
+            <div class="color-swatch" id="color-swatch"></div>
+            <div class="color-details">
+              <label for="bg-color-input">Background color</label>
+              <div class="color-input-row">
+                <input type="color" id="color-picker-native" />
+                <input type="text" id="bg-color-input" placeholder="#00FF00" maxlength="7" />
+              </div>
+              <div class="preset-row">
+                <span class="preset-label">Presets:</span>
+                <button class="preset-btn" data-color="#00FF00" title="Green screen"
+                  style="background:#00FF00"></button>
+                <button class="preset-btn" data-color="#0000FF" title="Blue screen"
+                  style="background:#0000FF"></button>
+                <button class="preset-btn" data-color="#FFFFFF" title="White background"
+                  style="background:#FFFFFF"></button>
+                <button class="preset-btn" data-color="#000000" title="Black background"
+                  style="background:#000000;border-color:#555"></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="video-meta" id="video-meta"></div>
+      </section>
+
+      <!-- Step 3: Settings -->
+      <section class="card" id="settings-section" hidden>
+        <h2><span class="step">3</span> Settings</h2>
+        <div class="settings-grid">
+          <div class="setting-row">
+            <label for="similarity-slider">
+              Color similarity
+              <span class="hint">Higher = remove more shades of the color</span>
+            </label>
+            <div class="slider-row">
+              <input type="range" id="similarity-slider" min="0.01" max="0.50" step="0.01" value="0.10" />
+              <span class="slider-value" id="similarity-value">0.10</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label for="blend-slider">
+              Edge blend
+              <span class="hint">Smooths edges around removed color</span>
+            </label>
+            <div class="slider-row">
+              <input type="range" id="blend-slider" min="0.00" max="0.20" step="0.01" value="0.05" />
+              <span class="slider-value" id="blend-value">0.05</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label for="frame-slider">
+              Frames
+              <span class="hint">LINE requires 5–20 frames</span>
+            </label>
+            <div class="slider-row">
+              <input type="range" id="frame-slider" min="5" max="20" step="1" value="10" />
+              <span class="slider-value" id="frame-value">10</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="line-specs">
+          <h3>LINE Sticker Specs</h3>
+          <ul>
+            <li>Format: <strong>APNG (.png)</strong></li>
+            <li>Max size: <strong>320 × 270 px</strong> (at least one side = 270 px)</li>
+            <li>File size: <strong>≤ 500 KB</strong></li>
+            <li>Frames: <strong>5–20</strong></li>
+            <li>Duration: <strong>≤ 4 seconds</strong></li>
+            <li>Background: <strong>Transparent</strong></li>
+          </ul>
+          <div class="target-dims" id="target-dims"></div>
+        </div>
+      </section>
+
+      <!-- Convert button -->
+      <div class="convert-row" id="convert-row" hidden>
+        <button class="btn-primary" id="convert-btn">
+          <span class="btn-icon">⚡</span> Convert to APNG
+        </button>
+      </div>
+
+      <!-- Step 4: Progress -->
+      <section class="card" id="progress-section" hidden>
+        <div class="progress-content">
+          <div class="spinner"></div>
+          <p id="progress-text">Converting…</p>
+        </div>
+      </section>
+
+      <!-- Step 5: Result -->
+      <section class="card" id="result-section" hidden>
+        <h2><span class="step">✓</span> Done!</h2>
+        <div class="result-area">
+          <div class="result-preview-wrapper">
+            <img id="result-img" alt="Converted sticker" />
+          </div>
+          <div class="result-info">
+            <div class="result-stat" id="result-dims"></div>
+            <div class="result-stat" id="result-size"></div>
+            <div class="warning-box" id="size-warning" hidden></div>
+            <button class="btn-primary" id="download-btn">
+              <span class="btn-icon">⬇</span> Download sticker.png
+            </button>
+            <button class="btn-ghost" id="restart-btn">Convert another</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        Based on
+        <a href="https://creator.line.me/en/guideline/animationsticker/" target="_blank" rel="noopener">
+          LINE Animated Sticker Guidelines
+        </a>
+      </p>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
