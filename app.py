@@ -220,6 +220,20 @@ def convert():
             ]
             subprocess.run(cmd, capture_output=True, check=True, timeout=120)
 
+            # Lossy colour quantisation — preserves frames, cuts colour depth
+            q_path = output_path.with_suffix(".q.png")
+            q_result = subprocess.run(
+                [
+                    "pngquant", "--quality=60-80", "--strip", "--force",
+                    "256", "--output", str(q_path), "--", str(output_path),
+                ],
+                capture_output=True, timeout=60,
+            )
+            if q_result.returncode == 0 and q_path.exists():
+                q_size = q_path.stat().st_size
+                if q_size < output_path.stat().st_size:
+                    output_path.write_bytes(q_path.read_bytes())
+
             file_size = output_path.stat().st_size
             if file_size <= LINE_MAX_FILE_SIZE or frame_count <= LINE_MIN_FRAMES:
                 break
