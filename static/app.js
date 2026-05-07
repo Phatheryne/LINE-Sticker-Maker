@@ -1,7 +1,7 @@
 /* ── i18n ─────────────────────────────────────────────────────────────── */
 const I18N = {
   en: {
-    title: "LINE Sticker Maker",
+    title: "LINE Animated Sticker Maker",
     subtitle: "Convert MP4 → APNG animated sticker",
     qs_title: "Quick Start",
     qs_1: "Upload an MP4 (≤ 4 sec, solid-color background works best)",
@@ -66,7 +66,7 @@ const I18N = {
     err_rate_limit: "Too many requests. Please wait a minute and try again.",
   },
   ja: {
-    title: "LINEスタンプメーカー",
+    title: "LINEアニメーションスタンプメーカー",
     subtitle: "MP4を動くスタンプ（APNG）に変換",
     qs_title: "クイックスタート",
     qs_1: "MP4をアップロード（4秒以内・単色背景がおすすめ）",
