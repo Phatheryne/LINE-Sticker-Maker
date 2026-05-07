@@ -193,38 +193,44 @@ def convert():
         duration = min(info["duration"], LINE_MAX_DURATION)
         if duration <= 0:
             raise ValueError("Video has zero or unknown duration")
-        output_fps = frame_count / duration
-
         output_path = tmp_dir / "sticker.png"
+        original_frame_count = frame_count
 
-        # Build FFmpeg filter chain
-        scale_filter = f"scale={target_w}:{target_h}:flags=lanczos"
-        fps_filter = f"fps={output_fps:.4f}"
+        # Auto-compression: retry with proportionally fewer frames until under 500 KB
+        for _ in range(3):
+            output_fps = frame_count / duration
+            scale_filter = f"scale={target_w}:{target_h}:flags=lanczos"
+            fps_filter = f"fps={output_fps:.4f}"
 
-        if bg_color:
-            ffmpeg_color = hex_to_ffmpeg_color(bg_color)
-            colorkey_filter = f"colorkey={ffmpeg_color}:{similarity:.3f}:{blend:.3f}"
-            vf = f"{fps_filter},{scale_filter},{colorkey_filter},format=rgba"
-        else:
-            vf = f"{fps_filter},{scale_filter},format=rgba"
+            if bg_color:
+                ffmpeg_color = hex_to_ffmpeg_color(bg_color)
+                colorkey_filter = f"colorkey={ffmpeg_color}:{similarity:.3f}:{blend:.3f}"
+                vf = f"{fps_filter},{scale_filter},{colorkey_filter},format=rgba"
+            else:
+                vf = f"{fps_filter},{scale_filter},format=rgba"
 
-        cmd = [
-            "ffmpeg", "-y",
-            "-i", str(input_path),
-            "-vf", vf,
-            "-frames:v", str(frame_count),
-            "-f", "apng",
-            "-plays", "0",
-            str(output_path),
-        ]
-        subprocess.run(cmd, capture_output=True, check=True, timeout=120)
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", str(input_path),
+                "-vf", vf,
+                "-frames:v", str(frame_count),
+                "-f", "apng",
+                "-plays", "0",
+                str(output_path),
+            ]
+            subprocess.run(cmd, capture_output=True, check=True, timeout=120)
 
-        file_size = output_path.stat().st_size
+            file_size = output_path.stat().st_size
+            if file_size <= LINE_MAX_FILE_SIZE or frame_count <= LINE_MIN_FRAMES:
+                break
+            # Proportional reduction with 10% safety margin
+            frame_count = max(LINE_MIN_FRAMES, int(frame_count * LINE_MAX_FILE_SIZE / file_size * 0.90))
+
         size_warning = None
         if file_size > LINE_MAX_FILE_SIZE:
             size_warning = (
-                f"Output is {file_size // 1024} KB, which exceeds LINE's 500 KB limit. "
-                "Try reducing the frame count or increasing the similarity threshold."
+                f"Output is {file_size // 1024} KB even at {frame_count} frames (LINE's minimum). "
+                "Try using a shorter video clip (≤ 2 seconds)."
             )
 
         # Read into memory before cleanup so the temp dir can be deleted safely
@@ -249,6 +255,11 @@ def convert():
     response.headers["X-File-Size"] = str(file_size)
     response.headers["X-Target-Width"] = str(target_w)
     response.headers["X-Target-Height"] = str(target_h)
+    response.headers["X-Frame-Count"] = str(frame_count)
+    if frame_count < original_frame_count:
+        response.headers["X-Auto-Compressed"] = (
+            f"Auto-compressed: frames reduced from {original_frame_count} to {frame_count} to fit within 500 KB."
+        )
     if size_warning:
         response.headers["X-Size-Warning"] = size_warning
     return response

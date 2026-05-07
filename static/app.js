@@ -35,7 +35,8 @@ const resultSection  = document.getElementById("result-section");
 const resultImg      = document.getElementById("result-img");
 const resultDims     = document.getElementById("result-dims");
 const resultSize     = document.getElementById("result-size");
-const sizeWarning    = document.getElementById("size-warning");
+const sizeWarning        = document.getElementById("size-warning");
+const autoCompressNote   = document.getElementById("auto-compress-note");
 const downloadBtn    = document.getElementById("download-btn");
 const restartBtn     = document.getElementById("restart-btn");
 
@@ -217,6 +218,7 @@ async function runConvert() {
     const w = res.headers.get("X-Target-Width");
     const h = res.headers.get("X-Target-Height");
     const warning = res.headers.get("X-Size-Warning");
+    const autoCompressed = res.headers.get("X-Auto-Compressed");
 
     hide(progressSection);
     convertBtn.disabled = false;
@@ -237,6 +239,12 @@ async function runConvert() {
       show(sizeWarning);
     } else {
       hide(sizeWarning);
+    }
+    if (autoCompressed) {
+      autoCompressNote.textContent = autoCompressed;
+      show(autoCompressNote);
+    } else {
+      hide(autoCompressNote);
     }
 
     downloadBtn.onclick = () => {

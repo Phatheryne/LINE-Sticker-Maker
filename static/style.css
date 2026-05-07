@@ -461,6 +461,16 @@ input[type="range"] {
   line-height: 1.5;
 }
 
+.info-box {
+  padding: 10px 14px;
+  background: rgba(6, 199, 85, 0.10);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: var(--accent);
+  line-height: 1.5;
+}
+
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 footer {
   text-align: center;
