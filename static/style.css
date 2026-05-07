@@ -538,3 +538,98 @@ footer a:hover { text-decoration: underline; }
 
 /* ── Utility ────────────────────────────────────────────────────────────── */
 [hidden] { display: none !important; }
+
+/* ── Mobile (≤ 600 px) ───────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .app {
+    padding: 16px 12px 48px;
+  }
+
+  /* Rearrange header as flex column so lang-toggle doesn't overlap the logo */
+  header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0 24px;
+  }
+
+  .lang-toggle {
+    position: static;
+    align-self: flex-end;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+  }
+
+  .card {
+    padding: 18px 14px;
+  }
+
+  .drop-zone {
+    padding: 32px 16px;
+  }
+
+  /* Canvas fills card width; JS coordinate scaling handles the rest */
+  .canvas-wrapper {
+    width: 100%;
+  }
+
+  #preview-canvas {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Color info stacks below canvas */
+  .color-info {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Prevent iOS keyboard zoom on focused inputs (requires ≥ 16px) */
+  input[type="text"] {
+    font-size: 1rem;
+  }
+
+  /* Larger touch target for range sliders */
+  input[type="range"] {
+    height: 24px;
+  }
+
+  /* Larger preset color buttons for touch */
+  .preset-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  /* Result image fills card width */
+  .result-preview-wrapper {
+    width: 100%;
+  }
+
+  #result-img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .result-info {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Full-width primary action buttons */
+  .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Collapse specs grid to single column */
+  .line-specs ul {
+    grid-template-columns: 1fr;
+  }
+}
