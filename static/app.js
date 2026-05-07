@@ -48,6 +48,22 @@ const I18N = {
     source: "Source:",
     dimensions: "Dimensions:",
     file_size: "File size:",
+    auto_compressed: "Auto-compressed: frames reduced from {orig} to {final} to fit within 500 KB.",
+    size_warning_msg: "Output is {size} KB even at {frames} frames (LINE's minimum). Try using a shorter video clip (≤ 2 seconds).",
+    err_prefix: "Error:",
+    err_network: "Network error:",
+    err_conversion: "Conversion failed:",
+    err_unknown: "Unknown error",
+    err_no_file: "No file provided",
+    err_empty_filename: "Empty filename",
+    err_invalid_form: "Invalid form values: similarity/blend must be numbers, frames must be an integer",
+    err_invalid_color: "Background color must be a hex like #00FF00",
+    err_no_video_stream: "No video stream found in file",
+    err_zero_duration: "Video has zero or unknown duration",
+    err_preview_timeout: "Preview timed out",
+    err_convert_timeout: "Conversion timed out (2 min limit)",
+    err_ffmpeg_error: "FFmpeg error",
+    err_rate_limit: "Too many requests. Please wait a minute and try again.",
   },
   ja: {
     title: "LINEスタンプメーカー",
@@ -97,11 +113,43 @@ const I18N = {
     source: "元動画：",
     dimensions: "サイズ：",
     file_size: "ファイルサイズ：",
+    auto_compressed: "自動圧縮：500 KB以下に収めるためフレーム数を {orig} → {final} に調整しました。",
+    size_warning_msg: "{frames} フレーム（LINE最小値）でも {size} KB あり、500 KB を超えています。短い動画（2秒以下）でお試しください。",
+    err_prefix: "エラー：",
+    err_network: "ネットワークエラー：",
+    err_conversion: "変換エラー：",
+    err_unknown: "不明なエラー",
+    err_no_file: "ファイルが添付されていません",
+    err_empty_filename: "ファイル名が空です",
+    err_invalid_form: "値が不正です：類似度・ブレンドは数値、フレーム数は整数で指定してください",
+    err_invalid_color: "背景色は #00FF00 のような16進カラーで指定してください",
+    err_no_video_stream: "動画ストリームが見つかりません",
+    err_zero_duration: "動画の再生時間が0または不明です",
+    err_preview_timeout: "プレビューがタイムアウトしました",
+    err_convert_timeout: "変換がタイムアウトしました（2分以内）",
+    err_ffmpeg_error: "FFmpegエラー",
+    err_rate_limit: "リクエストが多すぎます。1分ほどお待ちください。",
   },
 };
 
 let currentLang = (localStorage.getItem("lang") === "en" ? "en" : "ja");
-const t = (key) => (I18N[currentLang][key] ?? I18N.en[key] ?? key);
+function t(key, params) {
+  let str = I18N[currentLang][key] ?? I18N.en[key] ?? key;
+  if (params) {
+    Object.keys(params).forEach((k) => {
+      str = str.split(`{${k}}`).join(params[k]);
+    });
+  }
+  return str;
+}
+
+function serverErrorMessage(data, status) {
+  if (status === 429) return t("err_rate_limit");
+  const code = (data && data.error) || "unknown";
+  const base = t("err_" + code);
+  // If translation fell through to the raw code, append detail when present
+  return data && data.detail ? `${base}\n${data.detail}` : base;
+}
 
 /* ── State ────────────────────────────────────────────────────────────── */
 const state = {
@@ -110,6 +158,7 @@ const state = {
   previewInfo: null,
   resultBlob: null,
   resultObjectURL: null,  // tracked so we can revoke on re-convert / restart
+  lastResult: null,       // { fileSize, finalFrames, requestedFrames, w, h }
 };
 
 /* ── DOM refs ─────────────────────────────────────────────────────────── */
@@ -165,6 +214,36 @@ function setColor(hex) {
 }
 
 /* ── Language switching ───────────────────────────────────────────────── */
+function renderResultMessages() {
+  if (!state.lastResult) {
+    hide(autoCompressNote);
+    hide(sizeWarning);
+    return;
+  }
+  const { fileSize, finalFrames, requestedFrames, w, h } = state.lastResult;
+
+  resultDims.innerHTML = `${t("dimensions")} <strong>${w} × ${h} px</strong>`;
+  resultSize.innerHTML = `${t("file_size")} <strong>${formatBytes(fileSize)}</strong>`;
+
+  if (requestedFrames > 0 && finalFrames > 0 && finalFrames < requestedFrames) {
+    autoCompressNote.textContent = t("auto_compressed", {
+      orig: requestedFrames, final: finalFrames,
+    });
+    show(autoCompressNote);
+  } else {
+    hide(autoCompressNote);
+  }
+
+  if (fileSize > 500 * 1024) {
+    sizeWarning.textContent = t("size_warning_msg", {
+      size: Math.floor(fileSize / 1024), frames: finalFrames,
+    });
+    show(sizeWarning);
+  } else {
+    hide(sizeWarning);
+  }
+}
+
 function applyLang(lang) {
   currentLang = lang;
   localStorage.setItem("lang", lang);
@@ -187,6 +266,7 @@ function applyLang(lang) {
     targetDims.innerHTML =
       `${t("target_dims")} <strong>${d.target_width}×${d.target_height} px</strong>`;
   }
+  renderResultMessages();
 }
 
 document.querySelectorAll(".lang-btn").forEach((btn) => {
@@ -242,7 +322,7 @@ async function uploadPreview(file) {
     hide(progressSection);
 
     if (!res.ok) {
-      alert("Error: " + (data.error || "Unknown error"));
+      alert(t("err_prefix") + " " + serverErrorMessage(data, res.status));
       return;
     }
 
@@ -272,7 +352,7 @@ async function uploadPreview(file) {
     show(convertRow);
   } catch (err) {
     hide(progressSection);
-    alert("Network error: " + err.message);
+    alert(t("err_network") + " " + err.message);
   }
 }
 
@@ -343,7 +423,7 @@ async function runConvert() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || `HTTP ${res.status}`);
+      throw new Error(serverErrorMessage(data, res.status));
     }
 
     const blob = await res.blob();
@@ -352,8 +432,10 @@ async function runConvert() {
     const fileSizeBytes = parseInt(res.headers.get("X-File-Size") || "0", 10);
     const w = res.headers.get("X-Target-Width");
     const h = res.headers.get("X-Target-Height");
-    const warning = res.headers.get("X-Size-Warning");
-    const autoCompressed = res.headers.get("X-Auto-Compressed");
+    const finalFrames = parseInt(res.headers.get("X-Frame-Count") || "0", 10);
+    const requestedFrames = parseInt(res.headers.get("X-Frames-Requested") || "0", 10);
+
+    state.lastResult = { fileSize: fileSizeBytes, finalFrames, requestedFrames, w, h };
 
     hide(progressSection);
     convertBtn.disabled = false;
@@ -366,21 +448,7 @@ async function runConvert() {
     state.resultObjectURL = url;
 
     resultImg.src = url;
-    resultDims.innerHTML = `${t("dimensions")} <strong>${w} × ${h} px</strong>`;
-    resultSize.innerHTML = `${t("file_size")} <strong>${formatBytes(fileSizeBytes)}</strong>`;
-
-    if (warning) {
-      sizeWarning.textContent = warning;
-      show(sizeWarning);
-    } else {
-      hide(sizeWarning);
-    }
-    if (autoCompressed) {
-      autoCompressNote.textContent = autoCompressed;
-      show(autoCompressNote);
-    } else {
-      hide(autoCompressNote);
-    }
+    renderResultMessages();
 
     downloadBtn.onclick = () => {
       const a = document.createElement("a");
@@ -394,7 +462,7 @@ async function runConvert() {
   } catch (err) {
     hide(progressSection);
     convertBtn.disabled = false;
-    alert("Conversion failed: " + err.message);
+    alert(t("err_conversion") + " " + err.message);
   }
 }
 
@@ -407,6 +475,7 @@ restartBtn.addEventListener("click", () => {
   state.file = null;
   state.previewInfo = null;
   state.resultBlob = null;
+  state.lastResult = null;
   fileInput.value = "";
   hide(fileInfo);
   hide(previewSection);

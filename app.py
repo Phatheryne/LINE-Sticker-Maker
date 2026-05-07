@@ -19,6 +19,12 @@ app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
 
 limiter = Limiter(get_remote_address, app=app, default_limits=[], storage_uri="memory://")
 
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return jsonify({"error": "rate_limit"}), 429
+
+
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
@@ -46,7 +52,7 @@ def probe_video(path: str) -> dict:
         None,
     )
     if not video_stream:
-        raise ValueError("No video stream found in file")
+        raise ValueError("no_video_stream")
 
     width = int(video_stream["width"])
     height = int(video_stream["height"])
@@ -101,11 +107,11 @@ def health():
 @limiter.limit("10 per minute")
 def preview():
     if "file" not in request.files:
-        return jsonify({"error": "No file provided"}), 400
+        return jsonify({"error": "no_file"}), 400
 
     file = request.files["file"]
     if not file.filename:
-        return jsonify({"error": "Empty filename"}), 400
+        return jsonify({"error": "empty_filename"}), 400
 
     tmp_dir = UPLOAD_DIR / str(uuid.uuid4())
     tmp_dir.mkdir()
@@ -146,10 +152,10 @@ def preview():
             "frame_b64": frame_b64,
         })
     except subprocess.TimeoutExpired:
-        return jsonify({"error": "Processing timed out"}), 504
+        return jsonify({"error": "preview_timeout"}), 504
     except subprocess.CalledProcessError as e:
-        stderr = e.stderr[-500:] if e.stderr else ""
-        return jsonify({"error": f"FFmpeg error: {stderr}"}), 500
+        stderr = e.stderr[-500:].decode("utf-8", errors="replace") if e.stderr else ""
+        return jsonify({"error": "ffmpeg_error", "detail": stderr}), 500
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     finally:
@@ -160,7 +166,7 @@ def preview():
 @limiter.limit("5 per minute")
 def convert():
     if "file" not in request.files:
-        return jsonify({"error": "No file provided"}), 400
+        return jsonify({"error": "no_file"}), 400
 
     file = request.files["file"]
     bg_color = request.form.get("bg_color", "").strip()
@@ -169,7 +175,7 @@ def convert():
         blend = float(request.form.get("blend", "0.20"))
         frame_count = int(request.form.get("frame_count", "10"))
     except ValueError:
-        return jsonify({"error": "similarity and blend must be numbers; frame_count must be an integer"}), 400
+        return jsonify({"error": "invalid_form"}), 400
 
     # Clamp values to safe ranges
     similarity = max(0.01, min(0.5, similarity))
@@ -178,7 +184,7 @@ def convert():
 
     # Validate bg_color is a proper #RRGGBB hex string
     if bg_color and not re.fullmatch(r"#[0-9A-Fa-f]{6}", bg_color):
-        return jsonify({"error": "bg_color must be a hex color like #00FF00"}), 400
+        return jsonify({"error": "invalid_color"}), 400
 
     tmp_dir = UPLOAD_DIR / str(uuid.uuid4())
     tmp_dir.mkdir()
@@ -192,7 +198,7 @@ def convert():
 
         duration = min(info["duration"], LINE_MAX_DURATION)
         if duration <= 0:
-            raise ValueError("Video has zero or unknown duration")
+            raise ValueError("zero_duration")
         output_path = tmp_dir / "sticker.png"
         original_frame_count = frame_count
 
@@ -227,21 +233,14 @@ def convert():
             # Proportional reduction with 10% safety margin
             frame_count = max(LINE_MIN_FRAMES, int(frame_count * LINE_MAX_FILE_SIZE / file_size * 0.90))
 
-        size_warning = None
-        if file_size > LINE_MAX_FILE_SIZE:
-            size_warning = (
-                f"Output is {file_size // 1024} KB even at {frame_count} frames (LINE's minimum). "
-                "Try using a shorter video clip (≤ 2 seconds)."
-            )
-
         # Read into memory before cleanup so the temp dir can be deleted safely
         apng_bytes = output_path.read_bytes()
 
     except subprocess.TimeoutExpired:
-        return jsonify({"error": "Conversion timed out (2 min limit)"}), 504
+        return jsonify({"error": "convert_timeout"}), 504
     except subprocess.CalledProcessError as e:
-        stderr = e.stderr[-500:] if e.stderr else ""
-        return jsonify({"error": f"FFmpeg error: {stderr}"}), 500
+        stderr = e.stderr[-500:].decode("utf-8", errors="replace") if e.stderr else ""
+        return jsonify({"error": "ffmpeg_error", "detail": stderr}), 500
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     finally:
@@ -257,12 +256,7 @@ def convert():
     response.headers["X-Target-Width"] = str(target_w)
     response.headers["X-Target-Height"] = str(target_h)
     response.headers["X-Frame-Count"] = str(frame_count)
-    if frame_count < original_frame_count:
-        response.headers["X-Auto-Compressed"] = (
-            f"Auto-compressed: frames reduced from {original_frame_count} to {frame_count} to fit within 500 KB."
-        )
-    if size_warning:
-        response.headers["X-Size-Warning"] = size_warning
+    response.headers["X-Frames-Requested"] = str(original_frame_count)
     return response
 
 
