@@ -1,8 +1,9 @@
 import base64
+import io
 import json
-import os
+import re
+import shutil
 import subprocess
-import tempfile
 import uuid
 from pathlib import Path
 
@@ -30,7 +31,7 @@ def probe_video(path: str) -> dict:
         "-show_streams", "-show_format",
         str(path),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
     data = json.loads(result.stdout)
 
     video_stream = next(
@@ -43,12 +44,13 @@ def probe_video(path: str) -> dict:
     width = int(video_stream["width"])
     height = int(video_stream["height"])
 
-    # Parse fps (e.g. "30000/1001" or "30/1")
+    # Parse fps (e.g. "30000/1001" or "30/1"); "0/0" means unknown
     fps_raw = video_stream.get("r_frame_rate", "30/1")
     num, den = fps_raw.split("/")
-    fps = float(num) / float(den)
+    num_f, den_f = float(num), float(den)
+    fps = (num_f / den_f) if den_f != 0 and num_f != 0 else 30.0
 
-    duration = float(data["format"].get("duration", 0))
+    duration = float(data.get("format", {}).get("duration", 0))
     return {"width": width, "height": height, "fps": fps, "duration": duration}
 
 
@@ -114,6 +116,7 @@ def preview():
             ],
             capture_output=True,
             check=True,
+            timeout=60,
         )
 
         with open(frame_path, "rb") as f:
@@ -129,12 +132,14 @@ def preview():
             "suggested_frames": suggested_frames,
             "frame_b64": frame_b64,
         })
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Processing timed out"}), 504
     except subprocess.CalledProcessError as e:
-        return jsonify({"error": f"FFmpeg error: {e.stderr}"}), 500
+        stderr = e.stderr[-500:] if e.stderr else ""
+        return jsonify({"error": f"FFmpeg error: {stderr}"}), 500
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     finally:
-        import shutil
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
@@ -154,6 +159,10 @@ def convert():
     blend = max(0.0, min(0.3, blend))
     frame_count = max(LINE_MIN_FRAMES, min(LINE_MAX_FRAMES, frame_count))
 
+    # Validate bg_color is a proper #RRGGBB hex string
+    if bg_color and not re.fullmatch(r"#[0-9A-Fa-f]{6}", bg_color):
+        return jsonify({"error": "bg_color must be a hex color like #00FF00"}), 400
+
     tmp_dir = UPLOAD_DIR / str(uuid.uuid4())
     tmp_dir.mkdir()
 
@@ -165,6 +174,8 @@ def convert():
         target_w, target_h = compute_target_dimensions(info["width"], info["height"])
 
         duration = min(info["duration"], LINE_MAX_DURATION)
+        if duration <= 0:
+            raise ValueError("Video has zero or unknown duration")
         output_fps = frame_count / duration
 
         output_path = tmp_dir / "sticker.png"
@@ -189,7 +200,7 @@ def convert():
             "-plays", "0",
             str(output_path),
         ]
-        subprocess.run(cmd, capture_output=True, check=True)
+        subprocess.run(cmd, capture_output=True, check=True, timeout=120)
 
         file_size = output_path.stat().st_size
         size_warning = None
@@ -199,29 +210,31 @@ def convert():
                 "Try reducing the frame count or increasing the similarity threshold."
             )
 
-        response = send_file(
-            str(output_path),
-            mimetype="image/png",
-            as_attachment=True,
-            download_name="sticker.png",
-        )
-        response.headers["X-File-Size"] = str(file_size)
-        response.headers["X-Target-Width"] = str(target_w)
-        response.headers["X-Target-Height"] = str(target_h)
-        if size_warning:
-            response.headers["X-Size-Warning"] = size_warning
-        return response
+        # Read into memory before cleanup so the temp dir can be deleted safely
+        apng_bytes = output_path.read_bytes()
 
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Conversion timed out (2 min limit)"}), 504
     except subprocess.CalledProcessError as e:
-        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else str(e.stderr)
-        return jsonify({"error": f"FFmpeg error: {stderr[-500:]}"}), 500
+        stderr = e.stderr[-500:] if e.stderr else ""
+        return jsonify({"error": f"FFmpeg error: {stderr}"}), 500
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     finally:
-        # Clean up after sending — use a background thread to avoid deleting before send
-        import threading
-        import shutil
-        threading.Timer(5.0, lambda: shutil.rmtree(tmp_dir, ignore_errors=True)).start()
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    response = send_file(
+        io.BytesIO(apng_bytes),
+        mimetype="image/png",
+        as_attachment=True,
+        download_name="sticker.png",
+    )
+    response.headers["X-File-Size"] = str(file_size)
+    response.headers["X-Target-Width"] = str(target_w)
+    response.headers["X-Target-Height"] = str(target_h)
+    if size_warning:
+        response.headers["X-Size-Warning"] = size_warning
+    return response
 
 
 if __name__ == "__main__":

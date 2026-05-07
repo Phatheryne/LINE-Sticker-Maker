@@ -4,6 +4,7 @@ const state = {
   bgColor: "#00FF00",
   previewInfo: null,
   resultBlob: null,
+  resultObjectURL: null,  // tracked so we can revoke on re-convert / restart
 };
 
 /* ── DOM refs ─────────────────────────────────────────────────────────── */
@@ -63,7 +64,12 @@ dropZone.addEventListener("dragover", (e) => {
   e.preventDefault();
   dropZone.classList.add("drag-over");
 });
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+dropZone.addEventListener("dragleave", (e) => {
+  // Only remove highlight when leaving the drop-zone itself, not a child element
+  if (!dropZone.contains(e.relatedTarget)) {
+    dropZone.classList.remove("drag-over");
+  }
+});
 dropZone.addEventListener("drop", (e) => {
   e.preventDefault();
   dropZone.classList.remove("drag-over");
@@ -140,8 +146,9 @@ previewCanvas.addEventListener("click", (e) => {
   const rect = previewCanvas.getBoundingClientRect();
   const scaleX = previewCanvas.width  / rect.width;
   const scaleY = previewCanvas.height / rect.height;
-  const x = Math.floor((e.clientX - rect.left) * scaleX);
-  const y = Math.floor((e.clientY - rect.top)  * scaleY);
+  // Clamp to valid pixel range so getImageData never goes out of bounds
+  const x = Math.min(Math.floor((e.clientX - rect.left) * scaleX), previewCanvas.width  - 1);
+  const y = Math.min(Math.floor((e.clientY - rect.top)  * scaleY), previewCanvas.height - 1);
   const ctx = previewCanvas.getContext("2d");
   const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
   const hex = "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase();
@@ -214,8 +221,13 @@ async function runConvert() {
     hide(progressSection);
     convertBtn.disabled = false;
 
-    // Show result
+    // Revoke previous object URL before creating a new one
+    if (state.resultObjectURL) {
+      URL.revokeObjectURL(state.resultObjectURL);
+    }
     const url = URL.createObjectURL(blob);
+    state.resultObjectURL = url;
+
     resultImg.src = url;
     resultDims.innerHTML = `Dimensions: <strong>${w} × ${h} px</strong>`;
     resultSize.innerHTML = `File size: <strong>${formatBytes(fileSizeBytes)}</strong>`;
@@ -245,6 +257,10 @@ async function runConvert() {
 
 /* ── Restart ──────────────────────────────────────────────────────────── */
 restartBtn.addEventListener("click", () => {
+  if (state.resultObjectURL) {
+    URL.revokeObjectURL(state.resultObjectURL);
+    state.resultObjectURL = null;
+  }
   state.file = null;
   state.previewInfo = null;
   state.resultBlob = null;
