@@ -1,6 +1,7 @@
 import base64
 import io
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -8,9 +9,15 @@ import uuid
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB upload limit
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
+
+limiter = Limiter(get_remote_address, app=app, default_limits=[], storage_uri="memory://")
 
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -85,7 +92,13 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
 @app.route("/preview", methods=["POST"])
+@limiter.limit("10 per minute")
 def preview():
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
@@ -144,6 +157,7 @@ def preview():
 
 
 @app.route("/convert", methods=["POST"])
+@limiter.limit("5 per minute")
 def convert():
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
@@ -241,4 +255,6 @@ def convert():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    debug = os.environ.get("DEBUG", "false").lower() == "true"
+    app.run(debug=debug, port=port, host="0.0.0.0")
