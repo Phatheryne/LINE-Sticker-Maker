@@ -165,8 +165,8 @@ def convert():
     file = request.files["file"]
     bg_color = request.form.get("bg_color", "").strip()
     try:
-        similarity = float(request.form.get("similarity", "0.10"))
-        blend = float(request.form.get("blend", "0.05"))
+        similarity = float(request.form.get("similarity", "0.30"))
+        blend = float(request.form.get("blend", "0.20"))
         frame_count = int(request.form.get("frame_count", "10"))
     except ValueError:
         return jsonify({"error": "similarity and blend must be numbers; frame_count must be an integer"}), 400
